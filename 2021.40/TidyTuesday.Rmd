@@ -1,0 +1,149 @@
+---
+title: '2021.42'
+output: html_document
+---
+
+```{r}
+library(tidytuesdayR)
+library(tidyverse)
+library(nberwp)
+library(scales)
+library(showtext)
+
+font_add_google("Cinzel", "cinzel")
+
+showtext_auto()
+
+theme_set(theme_minimal())
+
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load(2021, 40)
+```
+
+```{r}
+papers <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-28/papers.csv')
+authors <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-28/authors.csv')
+programs <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-28/programs.csv')
+paper_authors <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-28/paper_authors.csv')
+paper_programs <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-28/paper_programs.csv')
+
+joined_df <- left_join(papers, paper_authors) %>% 
+  left_join(authors) %>% 
+  left_join(paper_programs) %>% 
+  left_join(programs) %>% 
+  mutate(
+    catalogue_group = str_sub(paper, 1, 1),
+    catalogue_group = case_when(
+      catalogue_group == "h" ~ "Historical",
+      catalogue_group == "t" ~ "Technical",
+      catalogue_group == "w" ~ "General"
+    ),
+    .after = paper
+  ) 
+
+joined_df
+```
+
+```{r}
+
+joined_df %>%
+  count(name) %>%
+  arrange(desc(n))
+
+joined_df %>%
+  count(program_desc) %>%
+  arrange(desc(n))
+
+```
+
+
+```{r}
+#omit 2021, incomplete year
+years = joined_df %>%
+  filter(year != '2021') %>%
+  count(year)
+
+#does the n trend continue to follow past years?
+ggplot(years, aes(x=year, y=n)) +
+  geom_line() +
+  geom_smooth(stat='smooth')
+
+```
+
+
+```{r}
+#what is the average growth rate (per year) for each program?
+program_count %>%
+  arrange(year) %>%
+  group_by(program_desc) %>%
+  mutate(growth = (n - lag(n))/lag(n)) %>%
+  summarize(avg = ((sum(growth, na.rm=TRUE))/(length(growth))))
+
+```
+
+
+```{r}
+program_count = joined_df %>%
+  drop_na() %>%
+  filter(year != '2021') %>%
+  group_by(program_desc) %>%
+  count(year) %>%
+  arrange(desc(year))
+
+# program_count_years = program_count %>% 
+#   group_by(program_desc) %>% 
+#   mutate(Earliest.Year = min(year)) %>%
+#   select(-n, -year) %>% 
+#   distinct() %>%
+#   expand(year = Earliest.Year:2020, Earliest.Year) %>%
+#   select(-Earliest.Year)
+# 
+# program_count_full = merge(program_count_years, program_count, all.x=TRUE)
+# program_count_full[is.na(program_count_full)] = 0
+```
+
+```{r}
+plot = ggplot(program_count, aes(x=year, y=n, group=program_desc)) +
+    geom_area(fill = "brown") +
+    geom_line(color = "black", size =1.2) +
+    facet_wrap(~ program_desc, labeller = label_wrap_gen()) +
+    labs(
+        title = "Explosive growth",
+        subtitle = "Although programs have steadily grown since their debut, they experienced incredible growth in 2020.",
+        caption = "\n\n@itsmebc | Source: National Bureau of Economic Research"
+    )+
+    theme(
+        strip.text.x = element_text("cinzel", size=14),
+        
+        axis.title = element_blank(),
+        axis.line = element_blank(),
+        axis.text.y = element_text(hjust = 1),
+        
+        panel.spacing = unit(1, "lines"),
+        panel.grid = element_blank(),
+        
+        plot.title = element_text("cinzel", size = 45, color = "red"),
+        plot.subtitle = element_text("cinzel", size = 17, color = "black", margin=margin(0,0,20,0)),
+        plot.margin = margin(1.5,.5,1.5,.5, "cm"), 
+        plot.background = element_rect(fill="#f7e7b2")
+    )
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
