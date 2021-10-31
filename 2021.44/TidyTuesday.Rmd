@@ -1,0 +1,152 @@
+---
+title: "TidyTuesday, 202144"
+output: html_document
+---
+
+```{r}
+#packages
+library(tidyverse)
+library(patchwork)
+library(jpeg)
+library(showtext)
+library(grid)
+library(cowplot)
+library(ggrepel)
+
+font_add_google("Rosario", family = "rosario")
+showtext_auto()
+
+options(scipen = 999)
+```
+
+```{r}
+#datasets
+ultra_rankings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-26/ultra_rankings.csv')
+race <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-26/race.csv')
+```
+
+
+```{r}
+race_solo = race %>%
+  mutate(participation = str_to_lower(participation)) %>%
+  filter(participation == 'solo')
+  
+```
+
+
+```{r}
+ultra_rankings
+```
+
+
+```{r}
+ultra_rankings = ultra_rankings %>%
+  filter(!age %in% c(0,5,133),
+         !is.na(gender))
+
+nationality_total = ultra_rankings %>%
+  count(nationality) %>%
+  arrange(desc(n)) %>%
+  mutate(percent = round((n/(sum(n))) * 100, 2))
+
+nationality_top10 = ultra_rankings %>%
+  filter(rank <= 10) %>%
+  count(nationality)%>%
+  arrange(desc(n)) %>%
+  mutate(percent = round((n/(sum(n))) * 100, 2))
+
+nationality_full = merge(x = nationality_total, y = nationality_top10, by='nationality')
+
+nationality_full = nationality_full %>%
+  rename(total_participation = n.x, total_percent = percent.x, top10_participation = n.y, top10_percent = percent.y)
+
+nationality_plot = nationality_full %>%
+  mutate(nationality = fct_reorder(nationality, total_percent),
+         color = ) %>%
+  slice(1:15)
+
+
+```
+
+```{r}
+ggplot(data=nationality_plot) +
+  geom_segment(aes(x=nationality, xend=nationality, y=total_percent, yend=top10_percent), color="black") +
+  geom_point(aes(x=nationality, y=top10_percent), color='red', size=4) +
+  coord_flip() +
+  labs(
+    title = 'Participation vs. Top 10 Finishes',
+  ) +
+  theme(
+    panel.background = element_rect(fill = 'white'),
+    panel.grid = element_blank(),
+    
+    axis.title = element_blank(),
+    axis.ticks = element_blank()
+  )
+```
+
+```{r}
+#explore average time between finishes
+
+times = ultra_rankings %>%
+  filter(!is.na(time_in_seconds),
+         rank <= 10) %>%
+  group_by(rank) %>%
+  summarize(mean = mean(time_in_seconds)) %>%
+  mutate(difference = mean - lag(mean),
+         size = round(50/log(rank+1)))
+  
+
+times = times %>%
+  mutate(color = case_when(rank == 1 ~ "#f9ef5f",
+                           rank == 2 ~ "#c2c2c2",
+                           rank == 3 ~ "#703a04",
+                           rank >= 4 ~ "#a08f6c"))
+
+times$label = duration(times$mean) %>%
+    str_extract(., '~(.*\\s[:lower:])')
+
+mountain = readJPEG("mountain.jpg")
+```
+
+```{r}
+set.seed(124)
+
+p = ggplot(data=times, aes(x=0,y=0))+
+  annotation_custom(rasterGrob(mountain,
+                             width = unit(1, "npc"),
+                             height = unit(1, "npc")),
+                   -Inf, Inf, -Inf, Inf)+
+  geom_rect(aes(xmin=-.075, xmax=.075, ymin=77250, ymax=77450), fill="#eb0202")+
+  geom_point(aes(x=0, y=mean), shape=21, color="black", fill=times$color, size=times$size+1)+
+  geom_text_repel(aes(x=0.04+(.05/rank), y=mean, label=label), size=5, family="rosario")+
+  geom_segment(aes(x=0.27,xend=0.33, y=97900, yend=97900), color="black")+
+  geom_segment(aes(x=0.33,xend=0.33, y=97900, yend=97800), color="black")+
+  geom_segment(aes(x=0.30,xend=0.30, y=97900, yend=97800), color="black")+
+  geom_segment(aes(x=0.27,xend=0.27, y=97900, yend=97800), color="black")+
+  coord_flip()+
+  xlim(-0.1,.4)+
+  ylim(98000, 77000)+
+  theme(
+      panel.grid = element_blank(),
+      axis.title.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank()
+  )+
+  annotate("text", label="Ahead of the Pack", x=0.38, y=98000, size=24, hjust=0, color="#6b5e37", family="rosario")+
+  annotate("text", label="Analyzing average top ten finish times", x=0.33, y=97400, size=9, hjust=0, color="black", family="rosario")+
+  annotate("text", label="First place is, on average, 1.4 hours faster than second place", x=0.30, y=97400, size=9, hjust=0, color="black", family="rosario")+
+  annotate("text", label="The top two are the only ones to finish under a day", x=0.27, y=97400, size=9, hjust=0, color="black", family="rosario")+
+  annotate("text", label="@heyitsmebc | Source: International Trail Running Association", x=-0.1, y=78700, hjust=0.5, color="black")
+```
+
+```{r}
+ggsave(paste0("TidyTuesday_", format(Sys.time(), "%d%m%Y"), ".png"),
+       width = 1860/72, height = 1080/72, dpi = 72)
+```
+
+
+
